@@ -1,5 +1,5 @@
 #!/bin/bash
-# © Copyright IBM Corporation 2019.
+# © Copyright IBM Corporation 2019, 2020
 # LICENSE: Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 #
 # Instructions:
@@ -11,7 +11,7 @@ set -e -o pipefail
 PACKAGE_NAME="cassandra"
 PACKAGE_VERSION="3.11.4"
 CURDIR="$(pwd)"
-CONF_URL="https://raw.githubusercontent.com/linux-on-ibm-z/scripts/master/ApacheCassandra/3.11.4/patch"
+PATCH_URL="https://raw.githubusercontent.com/linux-on-ibm-z/scripts/master/ApacheCassandra/3.11.4/patch"
 
 FORCE="false"
 TESTS="false"
@@ -24,16 +24,7 @@ if [ ! -d "$CURDIR/logs/" ]; then
    mkdir -p "$CURDIR/logs/"
 fi
 
-# Need handling for RHEL 6.10 as it doesn't have os-release file
-if [ -f "/etc/os-release" ]; then
-    source "/etc/os-release"
-else
-    cat /etc/redhat-release >> "${LOG_FILE}"
-    export ID="rhel"
-    export VERSION_ID="6.x"
-    export PRETTY_NAME="Red Hat Enterprise Linux 6.x"
-fi
-
+source "/etc/os-release"
 
 function prepare() {
     if  command -v "sudo" > /dev/null ;
@@ -66,9 +57,8 @@ function prepare() {
 
 function cleanup() {
     # Remove artifacts
-    rm -rf "${CURDIR}/jvm.options.diff"
-    rm -rf "${CURDIR}/build.xml.diff"
-    rm -rf "${CURDIR}/cassandra.yaml.diff"
+    rm -rfv "${CURDIR}/*.diff" >> "$LOG_FILE"
+    rm -rfv "${CURDIR}/*.patch" >> "$LOG_FILE"
     rm -rf "${CURDIR}/jna"
 
     printf -- "Cleaned up the artifacts\n" >> "$LOG_FILE"
@@ -79,7 +69,7 @@ function configureAndInstall() {
     
     # Install Ant
     cd "$CURDIR"
-    wget http://archive.apache.org/dist/ant/binaries/apache-ant-1.10.4-bin.tar.gz
+    wget https://archive.apache.org/dist/ant/binaries/apache-ant-1.10.4-bin.tar.gz
     tar -xvf apache-ant-1.10.4-bin.tar.gz
 
     printf -- "Install Ant success\n" >> "$LOG_FILE"
@@ -115,23 +105,30 @@ function configureAndInstall() {
     cd "$CURDIR"
 
     # Patch build.xml file
-    curl -o "build.xml.diff"  $CONF_URL/build.xml.diff 
+    curl -o "build.xml.diff"  $PATCH_URL/build.xml.diff 
     # replace config file
     patch "${CURDIR}/cassandra/build.xml" build.xml.diff
     printf -- 'Patched build.xml \n'  >> "$LOG_FILE"
     
     # Patch jvm.options file
-    curl -o "jvm.options.diff"  $CONF_URL/jvm.options.diff
+    curl -o "jvm.options.diff"  $PATCH_URL/jvm.options.diff
     # replace config file
     patch "${CURDIR}/cassandra/conf/jvm.options" jvm.options.diff 
     printf -- 'Patched jvm.options \n'  >> "$LOG_FILE" 
    
     # Patch cassandra.yaml file
-    curl -o "cassandra.yaml.diff"  $CONF_URL/cassandra.yaml.diff
+    curl -o "cassandra.yaml.diff"  $PATCH_URL/cassandra.yaml.diff
     # replace config file
     patch "${CURDIR}/cassandra/test/conf/cassandra.yaml" cassandra.yaml.diff
     printf -- 'Patched cassandra.yaml \n'   >> "$LOG_FILE"
+
+    curl -SLO $PATCH_URL/build.properties.default.patch
+    patch -p1 < build.properties.default.patch -d cassandra
+    printf -- 'Patched build.properties.default \n'   >> "$LOG_FILE"
     
+    curl -SLO $PATCH_URL/build.xml.patch
+    patch -p1 < build.xml.patch -d cassandra
+    printf -- 'Patched build.xml for https \n'   >> "$LOG_FILE"
 
     # Build Apache Cassandra
     cd "$CURDIR/cassandra"
@@ -142,7 +139,7 @@ function configureAndInstall() {
     # Replace Snappy-Java
     cd "$CURDIR/cassandra"
     rm lib/snappy-java-1.1.1.7.jar
-    wget -O lib/snappy-java-1.1.2.6.jar http://central.maven.org/maven2/org/xerial/snappy/snappy-java/1.1.2.6/snappy-java-1.1.2.6.jar 
+    wget -O lib/snappy-java-1.1.2.6.jar https://repo1.maven.org/maven2/org/xerial/snappy/snappy-java/1.1.2.6/snappy-java-1.1.2.6.jar
 
     printf -- 'Replace Snappy-Java success \n' >> "$LOG_FILE"
 
@@ -239,7 +236,7 @@ function gettingStarted() {
     
     printf -- "Open Command line in another terminal using command :\n"
     printf -- "cqlsh\n"
-    printf -- "For more help visit http://cassandra.apache.org/doc/latest/getting_started/index.html"
+    printf -- "For more help visit https://cassandra.apache.org/doc/latest/getting_started/index.html\n"
     printf -- '**********************************************************************************************************\n'
 }
     
@@ -248,14 +245,14 @@ prepare #Check Prequisites
 DISTRO="$ID-$VERSION_ID"
 
 case "$DISTRO" in
-    "ubuntu-16.04" | "ubuntu-18.04" | "ubuntu-19.04")
+    "ubuntu-16.04" | "ubuntu-18.04" | "ubuntu-19.10")
         printf -- "Installing %s %s for %s \n" "$PACKAGE_NAME" "$PACKAGE_VERSION" "$DISTRO" |& tee -a "$LOG_FILE"
         printf -- "Installing dependencies... it may take some time.\n"
         sudo apt-get update
         sudo apt-get install -y curl git tar g++ make automake autoconf libtool wget patch libx11-dev libxt-dev pkg-config texinfo locales-all unzip python |& tee -a "$LOG_FILE"
         configureAndInstall |& tee -a "$LOG_FILE"
         ;;
-    "rhel-7.4" | "rhel-7.5" | "rhel-7.6")
+    "rhel-7.5" | "rhel-7.6")
         printf -- "Installing %s %s for %s \n" "$PACKAGE_NAME" "$PACKAGE_VERSION" "$DISTRO" |& tee -a "$LOG_FILE"
         printf -- "Installing dependencies... it may take some time.\n"
         sudo yum install -y curl git which gcc-c++ make automake autoconf libtool libstdc++-static tar wget patch words libXt-devel libX11-devel texinfo unzip python |& tee -a "$LOG_FILE"
@@ -267,7 +264,7 @@ case "$DISTRO" in
         sudo zypper install -y curl git which make wget tar zip unzip words gcc-c++ patch libtool automake autoconf ccache java-1_8_0-openjdk-devel xorg-x11-proto-devel xorg-x11-devel alsa-devel cups-devel libffi48-devel libstdc++6-locale glibc-locale libstdc++-devel libXt-devel libX11-devel texinfo python |& tee -a "$LOG_FILE"
         configureAndInstall |& tee -a "$LOG_FILE"
         ;;
-    "sles-15")
+    "sles-15.1")
         printf -- "Installing %s %s for %s \n" "$PACKAGE_NAME" "$PACKAGE_VERSION" "$DISTRO" |& tee -a "$LOG_FILE"
         printf -- "Installing dependencies... it may take some time.\n"
         sudo zypper install -y curl git which make wget tar zip unzip gcc-c++ patch libtool automake autoconf ccache java-1_8_0-openjdk-devel xorg-x11-proto-devel xorg-x11-devel alsa-devel cups-devel libffi-devel libstdc++6-locale glibc-locale libstdc++-devel libXt-devel libX11-devel texinfo python |& tee -a "$LOG_FILE"
