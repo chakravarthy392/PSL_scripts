@@ -3,13 +3,13 @@
 # LICENSE: Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 #
 # Instructions:
-# Download build script: wget https://raw.githubusercontent.com/linux-on-ibm-z/scripts/master/SonarQube/9.0/build_sonarqube.sh
+# Download build script: wget https://raw.githubusercontent.com/linux-on-ibm-z/scripts/master/SonarQube/9.1/build_sonarqube.sh
 # Execute build script: bash build_sonarqube.sh    (provide -h for help)
 
 set -e -o pipefail
 
 PACKAGE_NAME="sonarqube"
-PACKAGE_VERSION="9.0.0.45539"
+PACKAGE_VERSION="9.1.0.47736"
 SCANNER_VERSION="4.6.2.2472"
 
 SOURCE_ROOT="$(pwd)"
@@ -18,7 +18,7 @@ BUILD_ENV="$HOME/setenv.sh"
 TESTS="false"
 FORCE="false"
 LOG_FILE="$SOURCE_ROOT/logs/${PACKAGE_NAME}-${PACKAGE_VERSION}-$(date +"%F-%T").log"
-JAVA_PROVIDED="AdoptJDK11"
+JAVA_PROVIDED="Semeru_11_openj9"
 
 trap cleanup 0 1 2 ERR
 
@@ -38,9 +38,9 @@ function prepare() {
         exit 1
     fi
 
-    if [[ "$JAVA_PROVIDED" != "AdoptJDK11" && "$JAVA_PROVIDED" != "OpenJDK" ]]
+    if [[ "$JAVA_PROVIDED" != "Semeru_11_openj9" && "$JAVA_PROVIDED" != "Adoptium_11_hotspot" && "$JAVA_PROVIDED" != "OpenJDK" ]]
     then
-        printf --  "$JAVA_PROVIDED is not supported, Please use valid java from {AdoptJDK11, OpenJDK} only." |& tee -a "$LOG_FILE"
+        printf --  "$JAVA_PROVIDED is not supported, Please use valid java from {Semeru_11_openj9, Adoptium_11_hotspot, OpenJDK} only." |& tee -a "$LOG_FILE"
         exit 1
     fi
 
@@ -73,17 +73,30 @@ function configureAndInstall() {
     printf -- "Configuration and Installation started \n"
 
     echo "Java provided by user $JAVA_PROVIDED" >> "$LOG_FILE"
-    if [[ "$JAVA_PROVIDED" == "AdoptJDK11" ]]; then
-        # Install AdoptOpenJDK 11 (With OpenJ9)
-
+    if [[ "$JAVA_PROVIDED" == "Semeru_11_openj9" ]]; then
+        # Install IBM Semeru Runtime 11
         cd "$SOURCE_ROOT"
+	mkdir Semeru_11_openj9
+	cd Semeru_11_openj9
         sudo wget https://github.com/ibmruntimes/semeru11-binaries/releases/download/jdk-11.0.12%2B7_openj9-0.27.0/ibm-semeru-open-jdk_s390x_linux_11.0.12_7_openj9-0.27.0.tar.gz
-        sudo tar -C /usr/local -xzf ibm-semeru-open-jdk_s390x_linux_11.0.12_7_openj9-0.27.0.tar.gz
-        export JAVA_HOME=/usr/local/jdk-11.0.12+7
+        sudo tar -xzf ibm-semeru-open-jdk_s390x_linux_11.0.12_7_openj9-0.27.0.tar.gz
+        export JAVA_HOME=$SOURCE_ROOT/Semeru_11_openj9/jdk-11.0.12+7
 
-        printf -- 'export JAVA_HOME=/usr/local/jdk-11.0.12+7\n'  >> "$BUILD_ENV"
-        printf -- 'AdoptOpenJDK 11 installed\n' >> "$LOG_FILE"
+        printf -- 'export JAVA_HOME=$SOURCE_ROOT/Semeru_11_openj9/jdk-11.0.12+7\n'  >> "$BUILD_ENV"
+        printf -- 'IBM Semeru Runtime 11 (Openj9) installed\n' >> "$LOG_FILE"
+	
+    elif [[ "$JAVA_PROVIDED" == "Adoptium_11_hotspot" ]]; then
+          # Install Eclipse Adoptium Temurin Runtime 11
+	 cd "$SOURCE_ROOT"
+	 mkdir Adoptium_11_hotspot
+	 cd Adoptium_11_hotspot
+         sudo wget https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.12%2B7/OpenJDK11U-jdk_s390x_linux_hotspot_11.0.12_7.tar.gz
+         sudo tar -xzf OpenJDK11U-jdk_s390x_linux_hotspot_11.0.12_7.tar.gz
+         export JAVA_HOME=$SOURCE_ROOT/Adoptium_11_hotspot/jdk-11.0.12+7
 
+        printf -- 'export JAVA_HOME=$SOURCE_ROOT/Adoptium_11_hotspot/jdk-11.0.12+7\n'  >> "$BUILD_ENV"
+        printf -- 'Eclipse Adoptium Temurin Runtime 11 (hotspot) installed\n' >> "$LOG_FILE"
+	
     elif [[ "$JAVA_PROVIDED" == "OpenJDK" ]]; then
         if [[ "$ID" == "rhel" ]]; then
             sudo yum install -y java-11-openjdk-devel
@@ -102,7 +115,7 @@ function configureAndInstall() {
         fi
 
     else
-        printf --  '$JAVA_PROVIDED is not supported, Please use valid java from {AdoptJDK11, OpenJDK} only' >> "$LOG_FILE"
+        printf --  '$JAVA_PROVIDED is not supported, Please use valid java from {Semeru_11_openj9, Adoptium_11_hotspot, OpenJDK} only' >> "$LOG_FILE"
         exit 1
     fi
 
@@ -164,11 +177,19 @@ function runTest() {
         git clone https://github.com/SonarSource/sonar-scanning-examples.git
 
         #Run Java Scanner
-        cd "$SOURCE_ROOT"/sonar-scanning-examples/sonarqube-scanner-gradle/gradle-basic
+	cd $SOURCE_ROOT/sonar-scanning-examples/sonarqube-scanner-gradle/gradle-basic
         ./gradlew -Dsonar.host.url=http://localhost:9000 -Dsonar.login="admin" -Dsonar.password="admin" sonarqube
-        curl http://localhost:9000/dashboard/index/Example%20of%20SonarQube%20Scanner%20for%20Gradle%20Usage
+        curl http://localhost:9000/dashboard?id=sonarqube-scanner-gradle
+	
+        cd $SOURCE_ROOT/sonar-scanning-examples/sonarqube-scanner-gradle/gradle-multimodule
+        ./gradlew -Dsonar.host.url=http://localhost:9000 -Dsonar.login="admin" -Dsonar.password="admin" sonarqube
+	curl http://localhost:9000/dashboard?id=org.sonarqube%3Agradle-multimodule
 
-        #Run Javacript scanner
+        cd $SOURCE_ROOT/sonar-scanning-examples/sonarqube-scanner-gradle/gradle-multimodule-coverage
+        ./gradlew clean build codeCoverageReport -Dsonar.host.url=http://localhost:9000 -Dsonar.login="admin" -Dsonar.password="admin" sonarqube	  
+        curl http://localhost:9000/dashboard?id=org.sonarqube.gradle-multi-module-jacoco
+	
+	#Run Javacript scanner
         if [[ $DISTRO = "rhel-8."* ]]; then
 			# Inside rhel 8.x
 		    sudo yum install -y wget tar make gcc gcc-c++ procps
@@ -230,8 +251,8 @@ function logDetails() {
 function printHelp() {
     echo
     echo "Usage: "
-    echo " bash build_sonarqube.sh  [-d debug] [-y install-without-confirmation] [-t install and run tests] [-j Java to use from {AdoptJDK11, OpenJDK}]"
-    echo "       default: If no -j specified, AdoptJDK11 will be installed."
+    echo " bash build_sonarqube.sh  [-d debug] [-y install-without-confirmation] [-t install and run tests] [-j Java to use from {Semeru_11_openj9, Adoptium_11_hotspot, OpenJDK}]"
+    echo "       default: If no -j specified, IBM Semeru Runtime 11 will be installed."
     echo
 }
 
@@ -283,7 +304,7 @@ case "$DISTRO" in
 "rhel-7.8" | "rhel-7.9" | "rhel-8.2" | "rhel-8.4")
     printf -- "Installing %s %s for %s \n" "$PACKAGE_NAME" "$PACKAGE_VERSION" "$DISTRO" |& tee -a "$LOG_FILE"
     printf -- "Installing dependencies... it may take some time.\n"
-    sudo yum install -y git wget unzip tar which curl net-tools xz net-tools |& tee -a "$LOG_FILE"
+    sudo yum install -y git wget unzip tar which curl net-tools xz |& tee -a "$LOG_FILE"
     configureAndInstall |& tee -a "$LOG_FILE"
     ;;
 "sles-12.5" | "sles-15.2" | "sles-15.3")

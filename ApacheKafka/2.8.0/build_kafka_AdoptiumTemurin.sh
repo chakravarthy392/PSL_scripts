@@ -3,8 +3,8 @@
 # LICENSE: Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 #
 # Instructions:
-# Download build script: wget https://raw.githubusercontent.com/linux-on-ibm-z/scripts/master/ApacheKafka/2.8.0/build_kafka.sh
-# Execute build script: bash build_kafka.sh    (provide -h for help)
+# Download build script: wget https://raw.githubusercontent.com/linux-on-ibm-z/scripts/master/ApacheKafka/2.8.0/build_kafka_AdoptiumTemurin.sh
+# Execute build script: bash build_kafka_AdoptiumTemurin.sh    (provide -h for help)
 
 set -e -o pipefail
 
@@ -54,7 +54,7 @@ function prepare() {
 
 function cleanup() {
     # Remove artifacts
-    rm -rf "$CURDIR/OpenJDK11U-jdk_s390x_linux_openj9_linuxXL_11.0.10_9_openj9-0.24.0.tar.gz"
+    rm -rf "$CURDIR/OpenJDK11U-jdk_s390x_linux_hotspot_11.0.12_7.tar.gz"
     rm -rf "$CURDIR/OpenJDK8U-jdk_s390x_linux_openj9_linuxXL_8u282b08_openj9-0.24.0.tar.gz"
     printf -- "Cleaned up the artifacts\n" 
 }
@@ -91,14 +91,14 @@ function installGCC() {
 function configureAndInstall() {
     printf -- "Configuration and Installation started \n"
     
-    # Installing AdoptOpenJDK11 + OpenJ9 with large heap
-    printf -- "Installing AdoptOpenJDK11 + OpenJ9 with Large heap \n"
+    # Installing Eclipse Adoptium Temurin Runtime Java 11
+    printf -- "Installing Eclipse Adoptium Temurin Runtime Java 11 \n"
     cd "$CURDIR"
-    wget https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.10%2B9_openj9-0.24.0/OpenJDK11U-jdk_s390x_linux_openj9_linuxXL_11.0.10_9_openj9-0.24.0.tar.gz
-    sudo tar zxf OpenJDK11U-jdk_s390x_linux_openj9_linuxXL_11.0.10_9_openj9-0.24.0.tar.gz -C /opt/
-    export JAVA_HOME=/opt/jdk-11.0.10+9
+    wget https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.12%2B7/OpenJDK11U-jdk_s390x_linux_hotspot_11.0.12_7.tar.gz
+    sudo tar zxf OpenJDK11U-jdk_s390x_linux_hotspot_11.0.12_7.tar.gz -C /opt/
+    export JAVA_HOME=/opt/jdk-11.0.12+7
     export PATH=$JAVA_HOME/bin:$PATH
-    printf -- "export JAVA_HOME=/opt/jdk-11.0.10+9\n" >> "$BUILD_ENV"
+    printf -- "export JAVA_HOME=/opt/jdk-11.0.12+7\n" >> "$BUILD_ENV"
     printf -- "export PATH=$JAVA_HOME/bin:$PATH\n" >> "$BUILD_ENV"
     printf -- "Java version is :\n"
     java -version
@@ -129,13 +129,16 @@ function configureAndInstall() {
     cd rocksdb
     git checkout v5.18.4
     sed -i '1656s/ARCH/MACHINE/g' Makefile
+    export DEBUG_LEVEL=0
     PORTABLE=1 make shared_lib
-    make rocksdbjava
+    make -j8 rocksdbjava
     printf -- "Built rocksdb and created rocksdbjni-5.18.4.jar successfully.\n"
     printf -- "Replace Rocksdbjni jar\n"
     cp $CURDIR/rocksdb/java/target/rocksdbjni-5.18.4-linux64.jar $HOME/.gradle/caches/modules-2/files-2.1/org.rocksdb/rocksdbjni/5.18.4/def7af83920ad2c39eb452f6ef9603777d899ea0/rocksdbjni-5.18.4.jar
     cp $CURDIR/rocksdb/java/target/rocksdbjni-5.18.4-linux64.jar $CURDIR/kafka/streams/examples/build/dependant-libs-2.13.3/rocksdbjni-5.18.4.jar
     cp $CURDIR/rocksdb/java/target/rocksdbjni-5.18.4-linux64.jar $CURDIR/kafka/streams/build/dependant-libs-2.13.3/rocksdbjni-5.18.4.jar
+    cp $CURDIR/rocksdb/java/target/rocksdbjni-5.18.4-linux64.jar $CURDIR/kafka/streams/streams-scala/build/dependant-libs-2.13.3/rocksdbjni-5.18.4.jar
+    cp $CURDIR/rocksdb/java/target/rocksdbjni-5.18.4-linux64.jar $CURDIR/kafka/streams/test-utils/build/dependant-libs-2.13.3/rocksdbjni-5.18.4.jar
     
     cleanup
 }
@@ -155,7 +158,7 @@ function logDetails() {
 # Print the usage message
 function printHelp() {
     echo " build_kafka.sh [-d debug] [-y install-without-confirmation] "
-    echo "  default: AdoptJDK 11 with Openj9 Large heap will be installed"
+    echo "  default: Eclipse Adoptium Temurin Runtime Java 11 will be installed"
 }
 
 while getopts "h?dyt" opt; do
@@ -203,7 +206,7 @@ case "$DISTRO" in
     printf -- "Installing %s %s for %s \n" "$PACKAGE_NAME" "$PACKAGE_VERSION" "$DISTRO" |& tee -a "$LOG_FILE"
     printf -- "Installing dependencies... it may take some time.\n"
 
-    sudo yum install -y wget tar git hostname unzip procps snappy binutils bzip2 bzip2-devel curl gcc-c++ make which zlib-devel diffutils
+    sudo yum install -y wget tar git hostname unzip procps snappy binutils bzip2 bzip2-devel curl gcc-c++ make which zlib-devel diffutils ca-certificates
     installGCC | tee -a "$LOG_FILE"
     configureAndInstall |& tee -a "$LOG_FILE"
     ;;
@@ -211,7 +214,7 @@ case "$DISTRO" in
 "rhel-8.2" | "rhel-8.3" | "rhel-8.4")
     printf -- "Installing %s %s for %s \n" "$PACKAGE_NAME" "$PACKAGE_VERSION" "$DISTRO" |& tee -a "$LOG_FILE"
     printf -- "Installing dependencies... it may take some time.\n"
-    sudo yum install -y wget tar git hostname snappy unzip procps binutils bzip2 bzip2-devel curl gcc-c++ make which zlib-devel diffutils
+    sudo yum install -y wget tar git hostname snappy unzip procps binutils bzip2 bzip2-devel curl gcc-c++ make which zlib-devel diffutils ca-certificates
     configureAndInstall |& tee -a "$LOG_FILE"
     ;;
     
