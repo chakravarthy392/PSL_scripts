@@ -1,5 +1,5 @@
 #!/bin/bash
-# © Copyright IBM Corporation 2021.
+# © Copyright IBM Corporation 2021, 2022.
 # LICENSE: Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 #
 # Instructions:
@@ -201,6 +201,12 @@ function configureAndInstall() {
     sudo pip3 install dist/*.whl
 
     printf -- 'tfx-bsl installed successfully \n'
+    
+    printf -- 'Installing google-api-core... \n'
+
+    sudo pip3 install google-api-core==2.8.1
+
+    printf -- 'google-api-core installed successfully \n'
 
     printf -- 'Building TensorFlow Transform... \n'
 
@@ -308,7 +314,7 @@ prepare # Check Prequisites
 
 DISTRO="$ID-$VERSION_ID"
 case "$DISTRO" in
-"ubuntu-18.04" | "ubuntu-20.04" | "ubuntu-21.04")
+"ubuntu-18.04" | "ubuntu-20.04")
     printf -- "Installing %s %s for %s \n" "$PACKAGE_NAME" "$PACKAGE_VERSION" "$DISTRO" |& tee -a "$LOG_FILE"
     sudo apt-get update
     sudo apt-get install -y libboost-dev libboost-filesystem-dev libboost-system-dev libboost-regex-dev automake autoconf libtool curl |& tee -a "$LOG_FILE"

@@ -1,5 +1,5 @@
 #!/bin/bash
-# © Copyright IBM Corporation 2021.
+# © Copyright IBM Corporation 2021, 2022.
 # LICENSE: Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 #
 # Usage:
@@ -389,7 +389,7 @@ buildCmake()
 #==============================================================================
 buildAnt()
 {
-  local ver=1.10.11
+  local ver=1.10.12
   msglog "Installing ant $ver"
 
   cd "$SOURCE_ROOT"
@@ -836,7 +836,7 @@ case "$DISTRO" in
 ;;
 
 #----------------------------------------------------------
-"rhel-8.1" | "rhel-8.2" | "rhel-8.3")
+"rhel-8.2")
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   sudo yum install -y gcc gcc-c++ libatomic libatomic_ops-devel \
@@ -886,12 +886,6 @@ case "$DISTRO" in
 
   gcc -v |& tee -a "$LOG_FILE"
   TOOLSET=gcc
-
-  if [ "$DISTRO"x = "rhel-8.3"x ]
-  then
-    #make /usr/bin/python3 link to python3.8
-    sudo update-alternatives --set python3 "/usr/bin/python3.8"
-  fi
 
   pip3 install --user --upgrade pip
   pip3 install --user pyparsing colorama pyyaml cassandra-driver boto3 requests pytest

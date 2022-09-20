@@ -1,5 +1,5 @@
 #!/bin/bash
-# © Copyright IBM Corporation 2021
+# © Copyright IBM Corporation 2021, 2022
 # LICENSE: Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 #
 # Instructions:
@@ -11,7 +11,6 @@ set -e -o pipefail
 PACKAGE_NAME="boringssl"
 CURDIR="$(pwd)"
 GIT_BRANCH="patch-s390x-Jan2021"
-
 TESTS="false"
 FORCE="false"
 LOG_FILE="$CURDIR/logs/${PACKAGE_NAME}-${GIT_BRANCH}-$(date +"%F-%T").log"
@@ -86,7 +85,7 @@ function configureAndInstall() {
     git clone https://github.com/linux-on-ibm-z/boringssl
     cd boringssl
     git checkout patch-s390x-Jan2021
-
+	
     # Build Boringssl
     cd $CURDIR/boringssl
     mkdir -p build
@@ -125,7 +124,7 @@ function logDetails() {
 function printHelp() {
     echo
     echo "Usage: "
-    echo " build_boringssl.sh  [-d debug] [-y install-without-confirmation] [-t install and run tests]"
+    echo "bash build_boringssl.sh  [-d debug] [-y install-without-confirmation] [-t install and run tests]"
     echo
 }
 
@@ -157,15 +156,15 @@ case "$DISTRO" in
     printf -- "Installing dependencies... it may take some time.\n"
     sudo apt-get update
     sudo apt-get install -y build-essential wget make tar git cmake gcc-7 g++-7 |& tee -a "$LOG_FILE"
-	  configureAndInstall |& tee -a "$LOG_FILE"
-	  ;;
-"ubuntu-20.04" | "ubuntu-20.10")
+      configureAndInstall |& tee -a "$LOG_FILE"
+      ;;
+"ubuntu-20.04")
     printf -- "Installing %s %s for %s \n" "$PACKAGE_NAME" "$GIT_BRANCH" "$DISTRO" |& tee -a "$LOG_FILE"
     printf -- "Installing dependencies... it may take some time.\n"
     sudo apt-get update
-    sudo apt-get install -y wget tar make gcc g++ cmake git |& tee -a "$LOG_FILE"
+    sudo apt-get install -y wget tar make gcc g++ cmake git curl |& tee -a "$LOG_FILE"
     configureAndInstall |& tee -a "$LOG_FILE"
-	  ;;
+      ;;
 "rhel-7.8" | "rhel-7.9")
     printf -- "Installing %s %s for %s \n" "$PACKAGE_NAME" "$GIT_BRANCH" "$DISTRO" |& tee -a "$LOG_FILE"
     printf -- "Installing dependencies... it may take some time.\n"
@@ -174,10 +173,10 @@ case "$DISTRO" in
     source /opt/rh/devtoolset-7/enable
 	  configureAndInstall |& tee -a "$LOG_FILE"
     ;;
-"rhel-8.1" | "rhel-8.2" | "rhel-8.3")
+"rhel-8.4")
     printf -- "Installing %s %s for %s \n" "$PACKAGE_NAME" "$GIT_BRANCH" "$DISTRO" |& tee -a "$LOG_FILE"
     printf -- "Installing dependencies... it may take some time.\n"
-    sudo yum install -y wget tar make gcc gcc-c++ bzip2 zlib zlib-devel git xz diffutils cmake |& tee -a "$LOG_FILE"
+    sudo yum install -y wget tar make gcc gcc-c++ bzip2 zlib zlib-devel git xz diffutils cmake libarchive-devel.s390x |& tee -a "$LOG_FILE"
 	  configureAndInstall |& tee -a "$LOG_FILE"
 	  ;;
 "sles-12.5")
@@ -190,7 +189,7 @@ case "$DISTRO" in
     sudo ln -sf /usr/bin/gcc /usr/bin/s390x-linux-gnu-gcc
     configureAndInstall |& tee -a "$LOG_FILE"
     ;;
-"sles-15.2")
+"sles-15.3")
     printf -- "Installing %s %s for %s \n" "$PACKAGE_NAME" "$GIT_BRANCH" "$DISTRO" |& tee -a "$LOG_FILE"
     printf -- "Installing dependencies... it may take some time.\n"
     sudo zypper install -y wget git tar gzip cmake zlib-devel gcc gcc-c++ |& tee -a "$LOG_FILE"
