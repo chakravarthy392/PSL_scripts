@@ -119,8 +119,13 @@ function installClang12() {
 function installV8() {
   cd "${CURDIR}"
   git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
-  export PATH=$PATH:`pwd`/depot_tools
+  cd "${CURDIR}"/depot_tools
+  git checkout a0382d39be0d7bf0f0766633185f20dcdd32a459
+  export PATH=$PATH:"${CURDIR}"/depot_tools
   export VPYTHON_BYPASS="manually managed python not supported by chrome operations"
+  export DEPOT_TOOLS_UPDATE=0
+
+  cd "${CURDIR}"
   git clone https://gn.googlesource.com/gn
   cd gn
   git checkout 8948350
@@ -133,12 +138,22 @@ function installV8() {
   ninja -C out
   export PATH="${CURDIR}"/gn/out:$PATH
   sudo ldconfig /usr/local/lib64 /usr/local/lib
+
   cd "${CURDIR}"
   printf -- 'Installing V8\n'
-  fetch v8
+  cat > .gclient <<EOF
+solutions = [
+  {
+    "url": "https://chromium.googlesource.com/v8/v8.git@8.3.110.9",
+    "managed": False,
+    "name": "v8",
+    "deps_file": "DEPS",
+  },
+];
+EOF
+  gclient sync
+
   cd v8
-  git checkout 8.3.110.9
-  gclient sync -D
   wget "${PATCH_URL}"/v8.diff -P ${CURDIR}/patch
   git apply ${CURDIR}/patch/v8.diff
   mkdir out/s390x.release
@@ -174,7 +189,7 @@ function configureAndInstall() {
   mkdir -p ${CURDIR}/patch
 
   # Go
-  if [[ "${ID}" == "ubuntu" ]] || [[ "${DISTRO}" == "rhel-7."* ]] || [[ "${DISTRO}" == "sles-12.5" ]]; then
+  if [[ "${DISTRO}" != "sles-15.3" ]]; then
     export PATH=/usr/local/go/bin:$PATH
     cd "${CURDIR}"
     if [ ! -f "/usr/local/go/bin/go" ]; then
@@ -208,7 +223,7 @@ function configureAndInstall() {
     ver=10.2.0
     if [ ! -f "/usr/local/bin/gcc" ]; then
       printf -- 'Installing GCC\n'
-      wget http://ftp.mirrorservice.org/sites/sourceware.org/pub/gcc/releases/gcc-${ver}/gcc-${ver}.tar.gz
+      wget https://ftp.gnu.org/gnu/gcc/gcc-${ver}/gcc-${ver}.tar.gz
       tar xzf gcc-${ver}.tar.gz
       cd gcc-${ver}
       ./contrib/download_prerequisites
@@ -908,11 +923,11 @@ case "$DISTRO" in
   export LD_LIBRARY_PATH=/usr/local/lib64:/usr/local/lib/:/usr/lib64:/usr/lib/:$LD_LIBRARY_PATH
   configureAndInstall |&  tee -a "$LOG_FILE"
   ;;
-  "rhel-8.2"  | "rhel-8.4"  | "rhel-8.5")
+  "rhel-8.4")
   printf -- "\nInstalling %s %s for %s \n" "$PACKAGE_NAME" "$PACKAGE_VERSION" "$DISTRO" |& tee -a "$LOG_FILE"
   printf -- '\nInstalling dependencies from repository \n' |& tee -a "$LOG_FILE"
   sudo yum install -y atk-devel autoconf automake binutils-devel bison bzip2 \
-    clang cmake cups-devel flex gcc gcc-c++ git gnome-keyring golang \
+    clang cmake cups-devel flex gcc gcc-c++ git gnome-keyring \
     libcurl-devel libev-devel libevent-devel libuv libuv-devel \
     libtool lz4-devel make ncurses-devel ninja-build numactl-devel openssl-devel openssl-perl\
     pcre-devel python2 python3 python3-devel python3-httplib2 snappy-devel tar texinfo \
